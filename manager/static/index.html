@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Trading System Manager</title>
+<style>
+  :root {
+    --bg: #0f1420; --card: #161d2e; --border: #2a3348; --text: #e8ecf5;
+    --muted: #8b95ab; --green: #34d399; --red: #f87171; --amber: #fbbf24;
+    --accent: #5b8def;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  .subtitle { color: var(--muted); font-size: 0.9rem; margin-bottom: 20px; }
+  .stop-all {
+    display: block; width: 100%; margin-bottom: 20px; padding: 14px;
+    background: var(--red); color: #1a0000; border: none; border-radius: 10px;
+    font-size: 1rem; font-weight: 700; cursor: pointer;
+  }
+  .stop-all:hover { filter: brightness(1.08); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px;
+  }
+  .card h2 { margin: 0 0 12px; font-size: 1.1rem; display: flex; align-items: center; gap: 8px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .dot.on { background: var(--green); }
+  .dot.off { background: var(--muted); }
+  .dot.warn { background: var(--amber); }
+  .row { display: flex; align-items: center; justify-content: space-between; margin: 10px 0; }
+  .label { color: var(--muted); font-size: 0.85rem; }
+  .value { font-size: 0.9rem; }
+  button {
+    background: #232c42; color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 14px; cursor: pointer; font-size: 0.85rem;
+  }
+  button:hover { background: #2c3752; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #0a1020; font-weight: 600; }
+  button.danger { background: #3a1e1e; border-color: #5a2e2e; color: var(--red); }
+  button:disabled { opacity: 0.3; cursor: default; filter: grayscale(0.6); }
+  .btn-row { display: flex; gap: 8px; margin-top: 10px; }
+  pre {
+    background: #0b0f19; border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px; font-size: 0.8rem; overflow-x: auto; margin: 6px 0;
+  }
+  .copy-btn { font-size: 0.75rem; padding: 4px 8px; }
+  .hint { color: var(--muted); font-size: 0.78rem; margin-top: 4px; }
+  .webhook-block { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+  .field-label { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 8px; }
+</style>
+</head>
+<body>
+  <h1>🎛️ Trading System Manager</h1>
+  <div class="subtitle">Local control panel — only reachable from this Mac. Never expose this page itself via a tunnel.</div>
+
+  <button class="stop-all" onclick="stopAll()">🛑 Stop All Services &amp; Tunnels</button>
+
+  <div class="grid" id="grid"></div>
+
+<script>
+const SERVICES = ["ibkr", "pepperstone"];
+
+async function api(path, opts) {
+  const resp = await fetch(path, opts || {});
+  return resp.json();
+}
+
+function dotClass(running, connected) {
+  if (!running) return "off";
+  if (connected === false) return "warn";
+  if (connected === true) return "on";
+  return "on";
+}
+
+function statusText(running, connected) {
+  if (!running) return "Stopped";
+  if (connected === true) return "Running — connected";
+  if (connected === false) return "Running — not connected";
+  return "Running";
+}
+
+async function refresh() {
+  const status = await api("/api/status");
+  for (const name of SERVICES) {
+    const s = status[name];
+    renderCard(name, s);
+  }
+}
+
+function renderCard(name, s) {
+  const el = document.getElementById(`card-${name}`);
+  const svc = s.service, tun = s.tunnel;
+
+  el.querySelector(".svc-dot").className = "dot svc-dot " + dotClass(svc.running, svc.connected);
+  el.querySelector(".svc-status").textContent = statusText(svc.running, svc.connected);
+  el.querySelector(".svc-start").disabled = svc.running;
+  el.querySelector(".svc-stop").disabled = !svc.running;
+
+  el.querySelector(".tun-dot").className = "dot tun-dot " + (tun.running ? "on" : "off");
+  el.querySelector(".tun-status").textContent = tun.running ? (tun.public_url || "starting...") : "Stopped";
+  el.querySelector(".tun-start").disabled = tun.running;
+  el.querySelector(".tun-stop").disabled = !tun.running;
+
+  const webhookBlock = el.querySelector(".webhook-block");
+  if (tun.running && tun.public_url) {
+    webhookBlock.style.display = "block";
+    loadWebhookInfo(name);
+  } else {
+    webhookBlock.style.display = "none";
+  }
+}
+
+async function loadWebhookInfo(name) {
+  const info = await api(`/api/webhook-info/${name}`);
+  const el = document.getElementById(`card-${name}`);
+  el.querySelector(".webhook-url").textContent = info.webhook_url || "(tunnel not ready yet)";
+  el.querySelector(".webhook-header").textContent = `${info.header_name}: ${info.header_value}`;
+  el.querySelector(".webhook-json").textContent = JSON.stringify(info.json_example, null, 2);
+  el.querySelector(".webhook-fallback").textContent = info.query_param_fallback || "";
+}
+
+function copyText(selector) {
+  const text = document.querySelector(selector).textContent;
+  navigator.clipboard.writeText(text);
+}
+
+async function startService(name) {
+  const result = await api(`/api/service/${name}/start`, {method: "POST"});
+  refresh();
+  if (!result.running && result.error_hint) {
+    console.error(`[${name}] Service failed to start. Last log lines:\n${result.error_hint}`);
+  }
+}
+async function stopService(name) { await api(`/api/service/${name}/stop`, {method: "POST"}); refresh(); }
+async function startTunnel(name) { await api(`/api/tunnel/${name}/start`, {method: "POST"}); refresh(); }
+async function stopTunnel(name) { await api(`/api/tunnel/${name}/stop`, {method: "POST"}); refresh(); }
+async function stopAll() { await api("/api/stop-all", {method: "POST"}); refresh(); }
+
+function buildGrid() {
+  const labels = {ibkr: "IBKR (Interactive Brokers)", pepperstone: "Pepperstone (cTrader)"};
+  const grid = document.getElementById("grid");
+  for (const name of SERVICES) {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.id = `card-${name}`;
+    card.innerHTML = `
+      <h2><span class="dot svc-dot off"></span> ${labels[name]}</h2>
+
+      <div class="row">
+        <span class="label">Service</span>
+        <span class="value svc-status">Stopped</span>
+      </div>
+      <div class="btn-row">
+        <button class="primary svc-start" onclick="startService('${name}')">Start service</button>
+        <button class="danger svc-stop" onclick="stopService('${name}')">Stop service</button>
+      </div>
+
+      <div class="row" style="margin-top:16px;">
+        <span class="label"><span class="dot tun-dot off"></span> Tunnel (ngrok)</span>
+        <span class="value tun-status">Stopped</span>
+      </div>
+      <div class="btn-row">
+        <button class="primary tun-start" onclick="startTunnel('${name}')">Start tunnel</button>
+        <button class="danger tun-stop" onclick="stopTunnel('${name}')">Stop tunnel</button>
+      </div>
+
+      <div class="webhook-block" style="display:none;">
+        <div class="field-label">Webhook URL</div>
+        <pre class="webhook-url"></pre>
+        <button class="copy-btn" onclick="copyText('#card-${name} .webhook-url')">Copy URL</button>
+
+        <div class="field-label">Header</div>
+        <pre class="webhook-header"></pre>
+        <button class="copy-btn" onclick="copyText('#card-${name} .webhook-header')">Copy header</button>
+
+        <div class="field-label">JSON body example</div>
+        <pre class="webhook-json"></pre>
+        <button class="copy-btn" onclick="copyText('#card-${name} .webhook-json')">Copy JSON</button>
+
+        <div class="hint">No custom header option in TradingView? Use this URL instead (secret as a query param):</div>
+        <pre class="webhook-fallback"></pre>
+      </div>
+    `;
+    grid.appendChild(card);
+  }
+}
+
+if (location.protocol === "file:") {
+  document.body.innerHTML =
+    '<div class="card"><h2>⚠️ Wrong way to open this page</h2>' +
+    '<p>This file was opened directly in the browser (file://), which browsers block from making the API calls this dashboard needs.</p>' +
+    '<p>Start the manager instead and open it at its real address:</p>' +
+    '<pre>cd manager\nsource venv/bin/activate\npython app.py</pre>' +
+    '<p>Then visit <b>http://127.0.0.1:9000</b> — not this file.</p></div>';
+} else {
+  buildGrid();
+  refresh();
+  setInterval(refresh, 3000);
+}
+</script>
+</body>
+</html>
