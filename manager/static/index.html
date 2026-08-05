@@ -229,12 +229,13 @@ function buildGrid() {
         <pre class="webhook-header"></pre>
         <button class="copy-btn" onclick="copyText('#card-${name} .webhook-header')">Copy header</button>
 
+        <div class="hint">No custom header option in TradingView? Use this URL instead (secret as a query param):</div>
+        <pre class="webhook-fallback"></pre>
+        <button class="copy-btn" onclick="copyText('#card-${name} .webhook-fallback')">Copy URL</button>
+
         <div class="field-label">JSON body example</div>
         <pre class="webhook-json"></pre>
         <button class="copy-btn" onclick="copyText('#card-${name} .webhook-json')">Copy JSON</button>
-
-        <div class="hint">No custom header option in TradingView? Use this URL instead (secret as a query param):</div>
-        <pre class="webhook-fallback"></pre>
       </div>
     `;
     grid.appendChild(card);

@@ -78,16 +78,18 @@ async def webhook_info(name: str) -> dict:
     tunnel = pm.tunnel_status(name)
     base_url = tunnel["public_url"]
 
-    default_lot = env.get("DEFAULT_LOT", "5")
-    default_tp = env.get("DEFAULT_TP_TICKS", "40")
-    default_sl = env.get("DEFAULT_SL_TICKS", "40")
-
-    json_example = {
-        "type": "buy",
-        "lot": _coerce_number(default_lot),
-        "tp": _coerce_number(default_tp),
-        "sl": _coerce_number(default_sl),
-    }
+    if name == "pepperstone":
+        json_example = {"type": "buy", "lot": 0.5, "tp": 600, "sl": 300}
+    else:
+        default_lot = env.get("DEFAULT_LOT", "5")
+        default_tp = env.get("DEFAULT_TP_TICKS", "40")
+        default_sl = env.get("DEFAULT_SL_TICKS", "40")
+        json_example = {
+            "type": "buy",
+            "lot": _coerce_number(default_lot),
+            "tp": _coerce_number(default_tp),
+            "sl": _coerce_number(default_sl),
+        }
 
     return {
         "tunnel_running": tunnel["running"],
