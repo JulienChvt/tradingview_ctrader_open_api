@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import asyncio
 
-from ctrader_open_api.messages.OpenApiMessages_pb2 import ProtoOANewOrderReq
+from ctrader_open_api.messages.OpenApiMessages_pb2 import ProtoOAErrorRes, ProtoOANewOrderReq
 from ctrader_open_api.messages.OpenApiModelMessages_pb2 import (
     BUY,
     MARKET,
@@ -120,6 +120,16 @@ async def place_market_order_with_protection(
 
         while True:
             event = await asyncio.wait_for(queue.get(), timeout=15)
+            if isinstance(event, ProtoOAErrorRes):
+                detail = f"Order request rejected: {event.errorCode}: {event.description}"
+                logger.error(detail)
+                await notify_error(
+                    error_type="Order rejected",
+                    detail=detail,
+                    symbol=settings.symbol_name,
+                    action_needed="check the cTrader account — verify no unprotected position exists",
+                )
+                raise RuntimeError(detail)
             exec_type_name = _execution_type_name(event.executionType)
             logger.info(f"Order status transition: entry -> {exec_type_name}", extra={
                 "extra_fields": {"execution_type": exec_type_name}
@@ -143,6 +153,14 @@ async def place_market_order_with_protection(
         raise RuntimeError(detail)
 
     position = final_event.position
+
+    if not is_position_protected(position):
+        # The FILLED event's embedded position can lag the broker actually
+        # applying relativeStopLoss/relativeTakeProfit — re-check against
+        # live account state before concluding it's genuinely unprotected.
+        reconciled = await client.get_position(position.positionId)
+        if reconciled is not None:
+            position = reconciled
 
     if not is_position_protected(position):
         detail = (

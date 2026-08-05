@@ -53,6 +53,15 @@
   .hint { color: var(--muted); font-size: 0.78rem; margin-top: 4px; }
   .webhook-block { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
   .field-label { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 8px; }
+  .account-block { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+  .account-row { display: flex; gap: 8px; margin-top: 6px; }
+  .account-row input {
+    flex: 1; background: #0b0f19; border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 10px; color: var(--text); font-size: 0.85rem;
+  }
+  .account-msg { font-size: 0.78rem; margin-top: 6px; min-height: 1em; }
+  .account-msg.ok { color: var(--green); }
+  .account-msg.err { color: var(--red); }
 </style>
 </head>
 <body>
@@ -116,6 +125,35 @@ function renderCard(name, s) {
   }
 }
 
+async function loadAccountId(name) {
+  const info = await api(`/api/service/${name}/account-id`);
+  const el = document.getElementById(`card-${name}`);
+  el.querySelector(".account-input").value = info.account_id || "";
+}
+
+async function saveAccountId(name) {
+  const el = document.getElementById(`card-${name}`);
+  const input = el.querySelector(".account-input");
+  const msg = el.querySelector(".account-msg");
+  msg.className = "account-msg";
+  msg.textContent = "Saving...";
+  const resp = await fetch(`/api/service/${name}/account-id`, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({account_id: input.value.trim()}),
+  });
+  const result = await resp.json();
+  if (!resp.ok) {
+    msg.className = "account-msg err";
+    msg.textContent = result.detail || "Failed to save.";
+    return;
+  }
+  msg.className = "account-msg ok";
+  msg.textContent = result.restart_required
+    ? "Saved — restart the service for this to take effect."
+    : "Saved.";
+}
+
 async function loadWebhookInfo(name) {
   const info = await api(`/api/webhook-info/${name}`);
   const el = document.getElementById(`card-${name}`);
@@ -170,6 +208,18 @@ function buildGrid() {
         <button class="danger tun-stop" onclick="stopTunnel('${name}')">Stop tunnel</button>
       </div>
 
+      ${name === "pepperstone" ? `
+      <div class="account-block">
+        <div class="field-label">cTrader Account ID (ctidTraderAccountId)</div>
+        <div class="account-row">
+          <input type="text" class="account-input" placeholder="Blank = auto-pick" inputmode="numeric">
+          <button class="primary" onclick="saveAccountId('${name}')">Save</button>
+        </div>
+        <div class="hint">Leave blank to auto-pick when exactly one account matches CTRADER_ENVIRONMENT. Restart the service after changing this.</div>
+        <div class="account-msg"></div>
+      </div>
+      ` : ""}
+
       <div class="webhook-block" style="display:none;">
         <div class="field-label">Webhook URL</div>
         <pre class="webhook-url"></pre>
@@ -188,6 +238,7 @@ function buildGrid() {
       </div>
     `;
     grid.appendChild(card);
+    if (name === "pepperstone") loadAccountId(name);
   }
 }
 

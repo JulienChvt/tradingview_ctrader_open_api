@@ -66,6 +66,29 @@ def get_service_port(name: str) -> int:
     return int(port) if port else SERVICES[name]["default_port"]
 
 
+def get_env_setting(name: str, key: str) -> str:
+    return _service_env(name).get(key) or ""
+
+
+def set_env_setting(name: str, key: str, value: str) -> None:
+    """Updates a single key in a service's .env file in place, preserving
+    every other line. Appends the key if it isn't present yet."""
+    value = value.strip()
+    if "\n" in value or "\r" in value:
+        raise ValueError("value must not contain newlines")
+
+    env_file = SERVICES[name]["dir"] / ".env"
+    lines = env_file.read_text().splitlines() if env_file.exists() else []
+    prefix = f"{key}="
+    for i, line in enumerate(lines):
+        if line.startswith(prefix):
+            lines[i] = f"{key}={value}"
+            break
+    else:
+        lines.append(f"{key}={value}")
+    env_file.write_text("\n".join(lines) + "\n")
+
+
 def _find_pid_on_port(port: int) -> int | None:
     try:
         result = subprocess.run(

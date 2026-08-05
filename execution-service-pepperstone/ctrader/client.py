@@ -19,6 +19,7 @@ from ctrader_open_api.messages.OpenApiMessages_pb2 import (
     ProtoOAErrorRes,
     ProtoOAExecutionEvent,
     ProtoOAGetAccountListByAccessTokenReq,
+    ProtoOAReconcileReq,
     ProtoOASpotEvent,
     ProtoOASubscribeSpotsReq,
     ProtoOASymbolByIdReq,
@@ -181,6 +182,17 @@ class CTraderClient:
         await self._send_and_wait(req)
         logger.info(f"cTrader account authenticated: {self.account_id}")
 
+    async def get_position(self, position_id: int):
+        """Fetches the authoritative current state of one open position via
+        a reconcile call. Used right after a fill: the ExecutionEvent's
+        embedded position snapshot can arrive before relativeStopLoss/
+        relativeTakeProfit are reflected in it, even though the broker has
+        already applied them — this re-checks against the live account
+        state rather than trusting that snapshot."""
+        req = ProtoOAReconcileReq(ctidTraderAccountId=self.account_id)
+        res = await self._send_and_wait(req)
+        return next((p for p in res.position if p.positionId == position_id), None)
+
     async def _resolve_symbol(self) -> None:
         req = ProtoOASymbolsListReq(ctidTraderAccountId=self.account_id)
         res = await self._send_and_wait(req)
@@ -240,8 +252,9 @@ class CTraderClient:
             )
             return
 
-        if isinstance(message, ProtoOAExecutionEvent) and client_msg_id in self._execution_waiters:
-            await self._execution_waiters[client_msg_id].put(message)
+        if client_msg_id in self._execution_waiters:
+            if isinstance(message, (ProtoOAExecutionEvent, ProtoOAErrorRes)):
+                await self._execution_waiters[client_msg_id].put(message)
             return
 
         if client_msg_id and client_msg_id in self._pending:

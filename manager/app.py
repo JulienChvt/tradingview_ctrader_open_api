@@ -14,6 +14,7 @@ from dotenv import dotenv_values
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 import process_manager as pm
 
@@ -96,6 +97,29 @@ async def webhook_info(name: str) -> dict:
         "query_param_fallback": f"{base_url}/webhook?secret={secret}" if base_url else None,
         "json_example": json_example,
     }
+
+
+class AccountIdUpdate(BaseModel):
+    account_id: str
+
+
+@app.get("/api/service/{name}/account-id")
+async def get_account_id(name: str) -> dict:
+    _validate_name(name)
+    return {"account_id": pm.get_env_setting(name, "CTRADER_ACCOUNT_ID")}
+
+
+@app.post("/api/service/{name}/account-id")
+async def set_account_id(name: str, body: AccountIdUpdate) -> dict:
+    _validate_name(name)
+    value = body.account_id.strip()
+    if value and not value.isdigit():
+        raise HTTPException(
+            status_code=400,
+            detail="Account ID must be a numeric ctidTraderAccountId, or blank to auto-pick",
+        )
+    pm.set_env_setting(name, "CTRADER_ACCOUNT_ID", value)
+    return {"account_id": value, "restart_required": pm.service_status(name)["running"]}
 
 
 def _coerce_number(value: str):
