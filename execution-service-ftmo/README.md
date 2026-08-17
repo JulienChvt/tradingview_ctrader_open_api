@@ -8,7 +8,9 @@ This is functionally a clone of the Pepperstone backend: the cTrader Open API pr
 
 ## About the FTMO free trial
 
-FTMO's free trial gives you a **14-day simulated evaluation account** — under the hood this is a demo-type cTrader account regardless of what FTMO's own UI calls it. Keep `CTRADER_ENVIRONMENT=demo` in `.env` for this. The trial expires after 14 days; if `get_access_token.py` or the service stops finding your account, that's the first thing to check.
+FTMO's free trial gives you a **14-day simulated evaluation account** — no real money, regardless of what environment cTrader classifies it under. **Don't assume it's a `demo`-flagged account** — confirmed in practice that FTMO trial accounts can show up as `isLive: true` in cTrader's own account-list metadata (`get_access_token.py` prints this per account). If so, `.env` needs `CTRADER_ENVIRONMENT=live` **and** `CONFIRM_LIVE=true` to actually connect, even though it's not real capital — that flag just matches cTrader's server classification, not FTMO's marketing language. Always check the printed `isLive` value for your specific account rather than assuming either way. The trial expires after 14 days; if `get_access_token.py` or the service stops finding your account, that's the first thing to check.
+
+**Also don't confuse your FTMO trading *login* with the `ctidTraderAccountId`** the API actually needs — `get_access_token.py`'s account listing prints both per account (`ctidTraderAccountId=... login=...`); `CTRADER_ACCOUNT_ID` in `.env` must be the former. Using the login number there fails with `CH_CTID_TRADER_ACCOUNT_NOT_FOUND`.
 
 ## 1. One-time setup: register a cTrader Open API application
 
@@ -101,7 +103,7 @@ Then run `get_access_token.py` again against that account (demo and live are ent
 
 ## 7. Safety checklist (verify before any live-money use)
 
-- [ ] `CTRADER_ENVIRONMENT` defaults to `demo`; switching to `live` requires both the environment change **and** `CONFIRM_LIVE=true`.
+- [x] `CTRADER_ENVIRONMENT`/`CONFIRM_LIVE` correctly gate the connection — this account required both set (see the gotcha above); connection confirmed working 2026-08-17 (`cTrader account authenticated`, symbol resolved, spot prices subscribed).
 - [ ] Every filled position is confirmed to carry both a stop-loss and take-profit (`ctrader/orders.py` checks this and alerts if not).
 - [ ] `/webhook` rejects any request without a valid `WEBHOOK_SECRET`.
 - [ ] A missing or invalid `type` field results in no order being placed (tested, not just reviewed).
@@ -110,7 +112,7 @@ Then run `get_access_token.py` again against that account (demo and live are ent
 - [ ] Reconnect-with-backoff logic works after a real network drop, and a stuck/disconnected state is surfaced via log + Telegram.
 - [ ] A Telegram message actually arrives (tested live) for: trade opened, rejected order, and cTrader disconnection/token invalidation.
 
-This checklist has **not yet been run live against the FTMO account** — the code is shared with the already-verified Pepperstone backend (see its README's section 9 for what was found and fixed there), but that verification doesn't automatically carry over to a different broker/account. Confirm each item here before trusting it.
+Connection-level items are confirmed; **no actual order has been placed against this account yet**. The code is shared with the already-verified Pepperstone backend (see its README's section 9 for what was found and fixed there), but that verification doesn't automatically carry over to a different broker/account — confirm every remaining item here before trusting it with real webhook traffic.
 
 ## 8. Architecture notes
 
@@ -122,3 +124,5 @@ This checklist has **not yet been run live against the FTMO account** — the co
 - **Order rejections could be silently swallowed** if the fire-and-forget order path's error routing regresses — `ctrader/client.py`'s `_on_message` must route `ProtoOAErrorRes` to `_execution_waiters` (not just `_pending`), or a real rejection reason from cTrader disappears behind an opaque 15-second timeout.
 - **False "unprotected position" alarms** are possible right after a fill — cTrader's `ORDER_FILLED` event can carry a stale `position` snapshot that hasn't caught up to the SL/TP it just applied. `ctrader/orders.py` re-confirms via `CTraderClient.get_position()` (a `ProtoOAReconcileReq` call) before concluding a position is genuinely unprotected.
 - **Orders that exceed available margin get no response at all** from cTrader — not even a rejection tied to the request — and hit the same 15-second timeout with a blank error. If `/webhook` orders seem to silently hang, check the requested `lot` size against the account's actual balance/leverage before assuming it's a code bug.
+- **`CH_CTID_TRADER_ACCOUNT_NOT_FOUND` on startup** almost always means `CTRADER_ACCOUNT_ID` in `.env` was set to the trading **login** number instead of the `ctidTraderAccountId` — they're different numbers. Re-run `get_access_token.py` (or check its earlier output) and use the `ctidTraderAccountId=` value, not `login=`.
+- **This FTMO trial account is classified `LIVE` by cTrader**, confirmed via the account listing, despite carrying no real money — see "About the FTMO free trial" above. Don't assume a trial/demo-sounding account is safe to leave `CTRADER_ENVIRONMENT=demo` for; check the actual `isLive` flag.
