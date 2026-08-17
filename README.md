@@ -1,15 +1,16 @@
 # TradingView → Automated Execution
 
-Two independent backends implementing the same TradingView webhook contract — pick one, or run both at once on different ports:
+Three independent backends implementing the same TradingView webhook contract — pick one, or run several at once on different ports:
 
 - **[`execution-service/`](execution-service/README.md)** — Interactive Brokers, via `ib_async` + TWS/IB Gateway. Trades gold futures (MGC/GC).
 - **[`execution-service-pepperstone/`](execution-service-pepperstone/README.md)** — Pepperstone, via the cTrader Open API. Trades gold as a spot CFD (XAUUSD). No local terminal app required — connects straight to the broker's cloud host.
+- **[`execution-service-ftmo/`](execution-service-ftmo/README.md)** — FTMO, also via the cTrader Open API (same broker-agnostic protocol as Pepperstone, just different account credentials). Currently set up against an FTMO free-trial (simulated) account.
 
-Both expose the identical `/webhook` contract (`{"type","lot","tp","sl"}`, shared-secret auth, Telegram notifications), so a TradingView alert can point at whichever one you're running. This document covers the IBKR version; see the Pepperstone directory's own README for that one.
+All three expose the identical `/webhook` contract (`{"type","lot","tp","sl"}`, shared-secret auth, Telegram notifications), so a TradingView alert can point at whichever one you're running. This document covers the IBKR version; see each directory's own README for the cTrader-based ones.
 
 ## Managing everything: `manager/`
 
-**[`manager/`](manager/README.md)** is a local control-panel web app for starting/stopping either service and its ngrok tunnel, seeing live connection status, and getting the exact webhook URL + JSON to paste into TradingView — including a one-click "stop everything" to make sure your Mac isn't exposed when you step away. Run `python manager/app.py` and open http://127.0.0.1:9000. This is the easiest way to operate day-to-day; the sections below are for setting up each backend the first time.
+**[`manager/`](manager/README.md)** is a local control-panel web app for starting/stopping any of the services and its ngrok tunnel, seeing live connection status, and getting the exact webhook URL + JSON to paste into TradingView — including a one-click "stop everything" to make sure your Mac isn't exposed when you step away. Run `python manager/app.py` and open http://127.0.0.1:9000. This is the easiest way to operate day-to-day; the sections below are for setting up each backend the first time.
 
 ## IBKR version
 

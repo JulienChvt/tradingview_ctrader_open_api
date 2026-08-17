@@ -73,7 +73,8 @@
   <div class="grid" id="grid"></div>
 
 <script>
-const SERVICES = ["ibkr", "pepperstone"];
+const SERVICES = ["ibkr", "pepperstone", "ftmo"];
+const CTRADER_SERVICES = ["pepperstone", "ftmo"];
 
 async function api(path, opts) {
   const resp = await fetch(path, opts || {});
@@ -181,7 +182,7 @@ async function stopTunnel(name) { await api(`/api/tunnel/${name}/stop`, {method:
 async function stopAll() { await api("/api/stop-all", {method: "POST"}); refresh(); }
 
 function buildGrid() {
-  const labels = {ibkr: "IBKR (Interactive Brokers)", pepperstone: "Pepperstone (cTrader)"};
+  const labels = {ibkr: "IBKR (Interactive Brokers)", pepperstone: "Pepperstone (cTrader)", ftmo: "FTMO (cTrader)"};
   const grid = document.getElementById("grid");
   for (const name of SERVICES) {
     const card = document.createElement("div");
@@ -208,7 +209,7 @@ function buildGrid() {
         <button class="danger tun-stop" onclick="stopTunnel('${name}')">Stop tunnel</button>
       </div>
 
-      ${name === "pepperstone" ? `
+      ${CTRADER_SERVICES.includes(name) ? `
       <div class="account-block">
         <div class="field-label">cTrader Account ID (ctidTraderAccountId)</div>
         <div class="account-row">
@@ -239,7 +240,7 @@ function buildGrid() {
       </div>
     `;
     grid.appendChild(card);
-    if (name === "pepperstone") loadAccountId(name);
+    if (CTRADER_SERVICES.includes(name)) loadAccountId(name);
   }
 }
 

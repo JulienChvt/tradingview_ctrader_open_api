@@ -42,7 +42,17 @@ SERVICES = {
         "default_port": 8001,
         "health_key": "ctrader_connected",
     },
+    "ftmo": {
+        "label": "FTMO",
+        "dir": REPO_ROOT / "execution-service-ftmo",
+        "default_port": 8002,
+        "health_key": "ctrader_connected",
+    },
 }
+
+# Services whose backend is the cTrader Open API — the manager UI shows a
+# cTrader-account-ID field only for these.
+CTRADER_SERVICES = {"pepperstone", "ftmo"}
 
 NGROK_INSPECTOR_PORT = 4040
 NGROK_DEFAULT_CONFIG = Path.home() / "Library/Application Support/ngrok/ngrok.yml"
